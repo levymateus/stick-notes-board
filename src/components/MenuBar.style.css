@@ -1,0 +1,13 @@
+.MenuBar {
+  background-color: white;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  padding: 0px 32px;
+  z-index: 200;
+}
+
+h1 {
+  font-size: 14px;
+}
