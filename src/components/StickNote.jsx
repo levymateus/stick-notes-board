@@ -58,28 +58,66 @@ const StickNote = memo(({
     });
   }, [setItem]);
 
+  const moveStart = useCallback(({ x, y }) => {
+    const rect = ref.current?.getBoundingClientRect();
+
+    setOffset({
+      x: Math.abs(x - rect.x),
+      y: Math.abs(y - rect.y)
+    });
+
+    if (
+      rect.right - 32 > x &&
+      rect.bottom - 32 > y
+    ) {
+      return setCanMove(!canEdit)
+    }
+
+    setCanMove(false);
+  }, [setCanMove]);
+
+  const move = useCallback(({ x, y }) => {
+    const move = { x: x - offset.x, y: y - offset.y };
+
+    const rect = ref.current?.getBoundingClientRect();
+
+    if (move.y + rect.height + 1 >= appSize.height) {
+      move.y = rect.y;
+    }
+
+    if (move.y <= 0) {
+      move.y = 0;
+    }
+
+    if (move.x + rect.width + 1 >= appSize.width) {
+      move.x = rect.x;
+    }
+
+    if (move.x <= 0) {
+      move.x = 0;
+    }
+
+    ref.current.style.top = `${move.y}px`;
+    ref.current.style.left = `${move.x}px`;
+  }, [appSize, size, offset])
+
   useEffect(() => {
-    const prevState = getItem() || { position, size, text: "" };
-    const offset = { x: 0, y: 0 };
+    const { position, size, text } = getItem() || { position, size, text: "" };
 
     if (!ref.current) return;
 
-    offset.y = appSize.height - (prevState.position.y + prevState.size.height);
-    offset.x = appSize.width - (prevState.position.x + prevState.size.width);
+    move({ position: position, size: size })
 
-    if (offset.y > 0) offset.y = 0;
-    if (offset.x > 0) offset.x = 0;
+    ref.current.style.width = `${size.width}px`;
+    ref.current.style.height = `${size.height}px`
 
-    ref.current.style.top = `${prevState.position.y + offset.y}px`;
-    ref.current.style.left = `${prevState.position.x + offset.x}px`;
+    ref.current.innerText = text || "";
+  }, [getItem, move]);
 
-    ref.current.style.width = `${prevState.size.width}px`;
-    ref.current.style.height = `${prevState.size.height}px`
-
-    ref.current.innerText = prevState.text || "";
-  }, [getItem]);
-
-  useEffect(saveState, [saveState]);
+  useEffect(() => {
+    saveState();
+    return () => saveState();
+  }, [saveState]);
 
   useEffect(() => {
     if (canEdit && ref.current) ref.current.focus();
@@ -105,23 +143,33 @@ const StickNote = memo(({
       tabIndex="-1"
       className={contentEditableClassName}
       onMouseDown={(evt) => {
-        const rect = ref.current?.getBoundingClientRect();
+        evt.stopPropagation();
+        evt.preventDefault();
 
-        setOffset({
-          x: Math.abs(evt.clientX - rect.x),
-          y: Math.abs(evt.clientY - rect.y)
+        moveStart({ x: evt.clientX, y: evt.clientY });
+      }}
+      onTouchStart={(evt) => {
+        [...evt.changedTouches].forEach((touch) => {
+          moveStart({ x: touch.pageX, y: touch.pageY });
         });
+      }}
+      onMouseMove={(evt) => {
+        evt.stopPropagation();
+        evt.preventDefault();
 
-        if (
-          rect.right - 32 > evt.clientX &&
-          rect.bottom - 32 > evt.clientY
-        ) {
-          return setCanMove(!canEdit)
-        }
-
-        setCanMove(false);
+        if (canMove) move({ x: evt.clientX, y: evt.clientY });
+      }}
+      onTouchMove={(evt) => {
+        [...evt.changedTouches].forEach((touch) => {
+          if (canMove) move({ x: touch.pageX, y: touch.pageY });
+        });
       }}
       onMouseUp={() => {
+        setCanMove(false);
+        setOffset({ x: 0, y: 0 });
+        saveState();
+      }}
+      onTouchEnd={() => {
         setCanMove(false);
         setOffset({ x: 0, y: 0 });
         saveState();
@@ -178,40 +226,6 @@ const StickNote = memo(({
       onDoubleClick={(evt) => {
         evt.stopPropagation();
         setCanEdit(true);
-      }}
-      onMouseMove={(evt) => {
-        evt.stopPropagation();
-        evt.preventDefault();
-
-        if (!canMove) return;
-
-        const rect = ref.current?.getBoundingClientRect();
-
-        const position = {
-          x: evt.clientX - offset.x,
-          y: evt.clientY - offset.y,
-        };
-
-        if (position.y + rect.height + 1 >= appSize.height) {
-          position.y = rect.y;
-        }
-
-        if (position.y <= 1) {
-          position.y = 1;
-        }
-
-        if (position.x + rect.width + 1 >= appSize.width) {
-          position.x = rect.x;
-        }
-
-        if (position.x <= 1) {
-          position.x = 1;
-        }
-
-        if (ref.current) {
-          ref.current.style.top = `${position.y}px`;
-          ref.current.style.left = `${position.x}px`;
-        }
       }}
       onKeyDown={(evt) => {
         evt.stopPropagation();
